@@ -51,6 +51,25 @@ export default function KaraokePerformanceScreen() {
     }
   }, [currentTime, song]);
 
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+    if (isPlaying && song) {
+      interval = setInterval(() => {
+        setCurrentTime((prev) => {
+          const maxTime = song.duration * 1000;
+          if (prev >= maxTime) {
+            setIsPlaying(false);
+            return maxTime;
+          }
+          return prev + 100; // Advance 100ms every 100ms
+        });
+      }, 100);
+    }
+    return () => {
+      if (interval !== null) clearInterval(interval);
+    };
+  }, [isPlaying, song]);
+
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);
   };
