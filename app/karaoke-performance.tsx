@@ -2,7 +2,6 @@ import { View, Text, Pressable, ScrollView, Animated } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useState, useRef } from 'react';
-import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 
 import { ScreenContainer } from '@/components/screen-container';
 import { useColors } from '@/hooks/use-colors';
@@ -21,25 +20,22 @@ export default function KaraokePerformanceScreen() {
   const [currentLyricIndex, setCurrentLyricIndex] = useState(0);
   const [volume, setVolume] = useState(80);
   const scrollViewRef = useRef<ScrollView>(null);
-  const playerRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (songId) {
       const foundSong = getSongById(songId);
       setSong(foundSong || null);
     }
-    initializeAudio();
-  }, [songId]);
 
-  const initializeAudio = async () => {
-    try {
-      await setAudioModeAsync({
-        playsInSilentMode: true,
-      });
-    } catch (error) {
-      console.error('Error setting audio mode:', error);
-    }
-  };
+    return () => {
+      // Cleanup audio on unmount
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
+    };
+  }, [songId]);
 
   useEffect(() => {
     // Update current lyric based on time
@@ -71,7 +67,29 @@ export default function KaraokePerformanceScreen() {
   }, [isPlaying, song]);
 
   const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
+    if (!audioRef.current && typeof window !== 'undefined') {
+      audioRef.current = new (window as any).Audio();
+      if (song?.audioUrl && audioRef.current) {
+        audioRef.current.src = song.audioUrl;
+        audioRef.current.volume = volume / 100;
+      }
+    }
+
+    if (isPlaying) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      setIsPlaying(false);
+    } else {
+      if (audioRef.current && song?.audioUrl) {
+        try {
+          audioRef.current.play();
+        } catch (error) {
+          console.error('Error playing audio:', error);
+        }
+      }
+      setIsPlaying(true);
+    }
   };
 
   const handleSkip = (seconds: number) => {
@@ -82,6 +100,9 @@ export default function KaraokePerformanceScreen() {
 
   const handleVolumeChange = (value: number) => {
     setVolume(value);
+    if (audioRef.current) {
+      audioRef.current.volume = value / 100;
+    }
   };
 
   const formatTime = (ms: number) => {
