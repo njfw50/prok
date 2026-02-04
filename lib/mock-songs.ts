@@ -12,6 +12,7 @@ export const CATEGORIES: Category[] = [
   { id: '4', name: 'R&B', icon: 'music.note.list' },
   { id: '5', name: 'Country', icon: 'music.note' },
   { id: '6', name: 'Jazz', icon: 'music.note' },
+  { id: '7', name: 'Worship', icon: 'favorite' },
 ];
 
 export const MOCK_SONGS: Song[] = [
@@ -165,6 +166,28 @@ export const MOCK_SONGS: Song[] = [
       { timestamp: 9000, text: 'He left the bloodstains on the carpet' },
       { timestamp: 12000, text: 'She ran underneath the table' },
       { timestamp: 15000, text: 'He could see she was unable' },
+    ],
+  },
+  {
+    id: '9',
+    title: 'What A Beautiful Name',
+    artist: 'Hillsong Worship',
+    duration: 270,
+    category: 'Worship',
+    difficulty: 'medium',
+    imageUrl: 'https://via.placeholder.com/300x300?text=What+A+Beautiful+Name',
+    audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3',
+    plays: 2800000,
+    lyrics: [
+      { timestamp: 0, text: 'You were the Word at the beginning' },
+      { timestamp: 4000, text: 'One with God the Lord Most High' },
+      { timestamp: 8000, text: 'Very God and very human' },
+      { timestamp: 12000, text: 'You are the King of all creation' },
+      { timestamp: 16000, text: 'And in Your hands all things are held together' },
+      { timestamp: 20000, text: 'You are the Light that\'s shining through the darkness' },
+      { timestamp: 24000, text: 'You\'re the Name above all names' },
+      { timestamp: 28000, text: 'What a beautiful Name it is' },
+      { timestamp: 32000, text: 'What a beautiful Name, Jesus Christ' },
     ],
   },
 ];

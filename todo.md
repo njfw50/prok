@@ -46,7 +46,7 @@
 - [x] Implement search by title/artist
 - [x] Create search results screen
 - [x] Add filtering by category
-- [ ] Add sorting options (optional enhancement)
+- [x] Add sorting options (optional enhancement)
 
 ## Phase 8: Settings Screen
 - [x] Audio preferences (volume, effects)
@@ -61,8 +61,8 @@
 - [x] Create song data structure/types
 
 ## Phase 10: Polish & Testing
-- [ ] Test all user flows end-to-end
-- [ ] Verify audio playback on Android
-- [ ] Test lyrics synchronization
-- [ ] Optimize performance
-- [ ] Test on multiple screen sizes
+- [x] Test all user flows end-to-end
+- [x] Verify audio playback on Android
+- [x] Test lyrics synchronization
+- [x] Optimize performance
+- [x] Test on multiple screen sizes
