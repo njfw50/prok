@@ -87,7 +87,7 @@ export class SpotifyService {
   private baseUrl = 'https://api.spotify.com/v1';
   private clientId = 'your_client_id_here';
   private clientSecret = 'your_client_secret_here';
-  private accessToken: string | null = null;
+  private accessToken: string = '';
 
   /**
    * Get Spotify access token using Client Credentials flow
@@ -108,7 +108,7 @@ export class SpotifyService {
     });
 
     const data = await response.json();
-    this.accessToken = data.access_token;
+    this.accessToken = data.access_token || '';
     return this.accessToken;
   }
 
