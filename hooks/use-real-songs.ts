@@ -153,14 +153,24 @@ export async function getTopSongsByGenre(
 ): Promise<Song[]> {
   const allSongs: Song[] = [];
 
-  for (const artist of artists) {
-    const tracks = await lastfmService.getArtistTopTracks(artist);
-    tracks.slice(0, 3).forEach((t, i) => {
-      allSongs.push({
-        ...t,
-        id: `${artist}-top-${i}`,
-      });
-    });
+  try {
+    for (const artist of artists) {
+      try {
+        const tracks = await lastfmService.getArtistTopTracks(artist);
+        if (Array.isArray(tracks)) {
+          tracks.slice(0, 3).forEach((t, i) => {
+            allSongs.push({
+              ...t,
+              id: `${artist}-top-${i}`,
+            });
+          });
+        }
+      } catch (error) {
+        console.warn(`Error loading tracks for ${artist}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('Error in getTopSongsByGenre:', error);
   }
 
   return allSongs;
@@ -173,21 +183,37 @@ export function usePopularSongs(): Song[] {
   const [songs, setSongs] = useState<Song[]>([]);
 
   useEffect(() => {
-    const loadPopular = async () => {
-      // Artistas populares para demo
-      const popularArtists = [
-        'The Weeknd',
-        'Ariana Grande',
-        'Post Malone',
-        'Drake',
-        'Taylor Swift',
-      ];
+    let isMounted = true;
 
-      const songs = await getTopSongsByGenre(popularArtists);
-      setSongs(songs);
+    const loadPopular = async () => {
+      try {
+        // Artistas populares para demo
+        const popularArtists = [
+          'The Weeknd',
+          'Ariana Grande',
+          'Post Malone',
+          'Drake',
+          'Taylor Swift',
+        ];
+
+        const songs = await getTopSongsByGenre(popularArtists);
+        
+        if (isMounted) {
+          setSongs(songs);
+        }
+      } catch (error) {
+        console.error('Error loading popular songs:', error);
+        if (isMounted) {
+          setSongs([]);
+        }
+      }
     };
 
     loadPopular();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return songs;

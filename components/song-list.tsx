@@ -36,19 +36,32 @@ export function RealSongList({
   const { songs, loading, error } = useRealSongs(query, artist, limit);
 
   const handleSelectSong = (song: Song) => {
-    if (onSelectSong) {
-      onSelectSong(song);
-    } else {
-      // Navegar para performance com parâmetros da API
-      router.push({
-        pathname: '/karaoke-performance',
-        params: {
-          artist: song.artist,
-          track: song.title,
-        },
-      });
+    try {
+      if (onSelectSong) {
+        onSelectSong(song);
+      } else {
+        // Navegar para performance com parâmetros da API
+        router.push({
+          pathname: '/karaoke-performance',
+          params: {
+            artist: song.artist || 'Unknown',
+            track: song.title || 'Unknown',
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error selecting song:', error);
     }
   };
+
+  if (error) {
+    return (
+      <View className="flex-1 justify-center items-center py-10">
+        <Text className="text-red-600 font-semibold">⚠️ Erro ao carregar</Text>
+        <Text className="text-gray-600 text-sm mt-1">{error}</Text>
+      </View>
+    );
+  }
 
   if (loading) {
     return (
@@ -61,11 +74,10 @@ export function RealSongList({
     );
   }
 
-  if (error) {
+  if (!songs || songs.length === 0) {
     return (
       <View className="flex-1 justify-center items-center py-10">
-        <Text className="text-red-600 font-semibold">Erro ao carregar</Text>
-        <Text className="text-gray-600 text-sm mt-1">{error}</Text>
+        <Text className="text-gray-600">📭 Nenhuma música encontrada</Text>
       </View>
     );
   }

@@ -41,26 +41,33 @@ export default function KaraokePerformanceScreen() {
   useEffect(() => {
     const loadTrack = async () => {
       try {
-        if (params.artist && params.track) {
-          const trackData = await lastfmService.searchTrack(
-            params.artist,
-            params.track
-          );
-          if (trackData) {
-            setState((prev) => ({
-              ...prev,
-              trackData,
-              duration: trackData.duration,
-              loading: false,
-            }));
-          } else {
-            setState((prev) => ({ ...prev, loading: false }));
-          }
-        } else {
+        if (!params.artist || !params.track) {
+          console.warn('Missing artist or track parameters');
           setState((prev) => ({ ...prev, loading: false }));
+          return;
+        }
+
+        const trackData = await lastfmService.searchTrack(
+          String(params.artist),
+          String(params.track)
+        );
+        
+        if (trackData) {
+          setState((prev) => ({
+            ...prev,
+            trackData,
+            duration: trackData.duration || 0,
+            loading: false,
+          }));
+        } else {
+          setState((prev) => ({ 
+            ...prev, 
+            loading: false,
+            trackData: null,
+          }));
         }
       } catch (error) {
-        console.error('Error loading track:', error);
+        console.error('Error loading track:', error instanceof Error ? error.message : String(error));
         setState((prev) => ({ ...prev, loading: false }));
       }
     };
@@ -83,35 +90,59 @@ export default function KaraokePerformanceScreen() {
   const togglePlay = async () => {
     try {
       if (state.isPlaying) {
-        engine.pause();
+        if (typeof engine.pause === 'function') {
+          engine.pause();
+        }
       } else {
-        if (state.trackData) {
-          // Aqui integraríamos com player real
+        if (state.trackData && typeof engine.play === 'function') {
           engine.play();
+        } else {
+          console.warn('No track data or engine not available');
+          return;
         }
       }
       setState((prev) => ({ ...prev, isPlaying: !prev.isPlaying }));
     } catch (error) {
-      console.error('Playback error:', error);
+      console.error('Playback error:', error instanceof Error ? error.message : String(error));
     }
   };
 
   const skipForward = () => {
-    const newTime = Math.min(state.currentTime + 15, state.duration);
-    engine.seek(newTime);
-    setState((prev) => ({ ...prev, currentTime: newTime }));
+    try {
+      if (!state.duration || state.duration === 0) return;
+      const newTime = Math.min(state.currentTime + 15, state.duration);
+      if (typeof engine.seek === 'function') {
+        engine.seek(newTime);
+      }
+      setState((prev) => ({ ...prev, currentTime: newTime }));
+    } catch (error) {
+      console.error('Skip error:', error);
+    }
   };
 
   const skipBackward = () => {
-    const newTime = Math.max(state.currentTime - 15, 0);
-    engine.seek(newTime);
-    setState((prev) => ({ ...prev, currentTime: newTime }));
+    try {
+      if (!state.duration || state.duration === 0) return;
+      const newTime = Math.max(state.currentTime - 15, 0);
+      if (typeof engine.seek === 'function') {
+        engine.seek(newTime);
+      }
+      setState((prev) => ({ ...prev, currentTime: newTime }));
+    } catch (error) {
+      console.error('Skip error:', error);
+    }
   };
 
   const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    try {
+      if (!seconds || isNaN(seconds)) return '0:00';
+      const minutes = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    } catch (error) {
+      console.error('Format time error:', error);
+      return '0:00';
+    }
   };
 
   const progressPercent =
