@@ -22,9 +22,17 @@ interface PerformanceFrame {
 }
 
 export class KaraokeScoringSystem {
+  private static instance: KaraokeScoringSystem;
   private frames: PerformanceFrame[] = [];
   private startTime: number = 0;
   private expectedNotes: Array<{ time: number; frequency: number }> = [];
+
+  static getInstance(): KaraokeScoringSystem {
+    if (!KaraokeScoringSystem.instance) {
+      KaraokeScoringSystem.instance = new KaraokeScoringSystem();
+    }
+    return KaraokeScoringSystem.instance;
+  }
 
   /**
    * Initialize scoring with song data

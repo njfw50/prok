@@ -22,6 +22,7 @@ interface PerformanceMetrics {
 }
 
 export class KaraokeAudioEngine {
+  private static instance: KaraokeAudioEngine;
   private audioContext: AudioContext | null = null;
   private audioBuffer: AudioBuffer | null = null;
   private sourceNode: AudioBufferSourceNode | null = null;
@@ -45,6 +46,13 @@ export class KaraokeAudioEngine {
   };
 
   constructor() {}
+
+  static getInstance(): KaraokeAudioEngine {
+    if (!KaraokeAudioEngine.instance) {
+      KaraokeAudioEngine.instance = new KaraokeAudioEngine();
+    }
+    return KaraokeAudioEngine.instance;
+  }
 
   /**
    * Initialize audio context

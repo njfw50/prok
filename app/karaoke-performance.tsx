@@ -1,348 +1,337 @@
-import { View, Text, Pressable, ScrollView } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useEffect, useState, useRef } from 'react';
+/**
+ * Karaoke Performance - New Modern Design
+ * Cores: Azul (#1e40af) + Laranja (#ea580c) + Branco limpo
+ * Design: Minimal, card-based, light theme com Real API
+ */
 
-import { useKaraoke } from '@/lib/karaoke-context';
-import { getSongById } from '@/lib/mock-songs';
-import { Song } from '@/lib/types';
-import { LyricsLine } from '@/components/lyrics-line';
-import { PerformanceMetricsDisplay } from '@/components/performance-metrics';
+import { View, Text, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { useEffect, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { KaraokeAudioEngine } from '@/lib/audio-engine';
 import { KaraokeScoringSystem } from '@/lib/scoring-system';
+import { lastfmService, type TrackData } from '@/lib/music-api-service';
+
+const engine = KaraokeAudioEngine.getInstance();
+const scorer = KaraokeScoringSystem.getInstance();
+
+interface PerformanceState {
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  score: number;
+  rating: 'Perfect' | 'Great' | 'Good' | 'Fair' | 'Poor' | null;
+  trackData: TrackData | null;
+  loading: boolean;
+}
 
 export default function KaraokePerformanceScreen() {
   const router = useRouter();
-  const { songId } = useLocalSearchParams<{ songId: string }>();
-  const [song, setSong] = useState<Song | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [currentLyricIndex, setCurrentLyricIndex] = useState(0);
-  const [volume, setVolume] = useState(80);
-  const [showMetrics, setShowMetrics] = useState(false);
-  const [metrics, setMetrics] = useState({
-    score: 88,
-    accuracy: 85,
-    rhythm: 92,
-    rating: 'Great' as const,
+  const params = useLocalSearchParams<{ artist?: string; track?: string }>();
+  const [state, setState] = useState<PerformanceState>({
+    isPlaying: false,
+    currentTime: 0,
+    duration: 0,
+    score: 0,
+    rating: null,
+    trackData: null,
+    loading: true,
   });
-  
-  const audioEngineRef = useRef<KaraokeAudioEngine | null>(null);
-  const scoringSystemRef = useRef<KaraokeScoringSystem | null>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
 
+  // Buscar dados reais da música via API
   useEffect(() => {
-    if (songId) {
-      const foundSong = getSongById(songId);
-      setSong(foundSong || null);
-
-      if (!audioEngineRef.current) {
-        audioEngineRef.current = new KaraokeAudioEngine();
-        audioEngineRef.current.initialize();
-      }
-
-      if (!scoringSystemRef.current) {
-        scoringSystemRef.current = new KaraokeScoringSystem();
-      }
-
-      if (foundSong) {
-        scoringSystemRef.current.initialize(foundSong);
-      }
-    }
-
-    return () => {
-      if (isPlaying) {
-        handlePlayPause();
-      }
-    };
-  }, [songId]);
-
-  useEffect(() => {
-    if (song) {
-      const nextIndex = song.lyrics.findIndex(
-        (lyric) => lyric.timestamp > currentTime
-      );
-      setCurrentLyricIndex(nextIndex > 0 ? nextIndex - 1 : 0);
-    }
-  }, [currentTime, song]);
-
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
-    if (isPlaying && song) {
-      interval = setInterval(() => {
-        setCurrentTime((prev) => {
-          const maxTime = song.duration * 1000;
-          if (prev >= maxTime) {
-            handlePlayPause();
-            setShowMetrics(true);
-            return maxTime;
+    const loadTrack = async () => {
+      try {
+        if (params.artist && params.track) {
+          const trackData = await lastfmService.searchTrack(
+            params.artist,
+            params.track
+          );
+          if (trackData) {
+            setState((prev) => ({
+              ...prev,
+              trackData,
+              duration: trackData.duration,
+              loading: false,
+            }));
+          } else {
+            setState((prev) => ({ ...prev, loading: false }));
           }
-          return prev + 100;
-        });
-      }, 100);
-    }
-    return () => {
-      if (interval !== null) clearInterval(interval);
+        } else {
+          setState((prev) => ({ ...prev, loading: false }));
+        }
+      } catch (error) {
+        console.error('Error loading track:', error);
+        setState((prev) => ({ ...prev, loading: false }));
+      }
     };
-  }, [isPlaying, song]);
 
-  const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
+    loadTrack();
+  }, [params.artist, params.track]);
+
+  // Atualizar tempo de reprodução
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (state.isPlaying) {
+        const currentTime = engine.getCurrentTime();
+        setState((prev) => ({ ...prev, currentTime }));
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [state.isPlaying]);
+
+  const togglePlay = async () => {
+    try {
+      if (state.isPlaying) {
+        engine.pause();
+      } else {
+        if (state.trackData) {
+          // Aqui integraríamos com player real
+          engine.play();
+        }
+      }
+      setState((prev) => ({ ...prev, isPlaying: !prev.isPlaying }));
+    } catch (error) {
+      console.error('Playback error:', error);
+    }
   };
 
-  const handleSkip = (seconds: number) => {
-    const newTime = Math.max(0, currentTime + seconds * 1000);
-    const maxTime = song ? song.duration * 1000 : 0;
-    setCurrentTime(Math.min(newTime, maxTime));
+  const skipForward = () => {
+    const newTime = Math.min(state.currentTime + 15, state.duration);
+    engine.seek(newTime);
+    setState((prev) => ({ ...prev, currentTime: newTime }));
   };
 
-  const formatTime = (ms: number) => {
-    const seconds = Math.floor(ms / 1000);
+  const skipBackward = () => {
+    const newTime = Math.max(state.currentTime - 15, 0);
+    engine.seek(newTime);
+    setState((prev) => ({ ...prev, currentTime: newTime }));
+  };
+
+  const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+    const secs = Math.floor(seconds % 60);
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (!song) {
-    return (
-      <View className="flex-1 bg-slate-950 items-center justify-center">
-        <Text className="text-white">Song not found</Text>
-      </View>
-    );
-  }
-
-  const progress = (currentTime / (song.duration * 1000)) * 100;
+  const progressPercent =
+    state.duration > 0 ? (state.currentTime / state.duration) * 100 : 0;
 
   return (
-    <View className="flex-1" style={{ backgroundColor: '#0a0e27' }}>
-      {/* Animated Background */}
-      <View className="absolute inset-0">
-        <View className="absolute top-0 right-0 w-96 h-96 rounded-full" style={{
-          backgroundColor: 'rgba(124, 58, 237, 0.15)',
-        }} />
-        <View className="absolute bottom-0 left-0 w-80 h-80 rounded-full" style={{
-          backgroundColor: 'rgba(236, 72, 153, 0.1)',
-        }} />
+    <ScrollView className="flex-1 bg-white">
+      {/* Header - Novo design azul */}
+      <View className="bg-blue-600 px-4 py-6">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="mb-4"
+        >
+          <Text className="text-white text-lg">← Voltar</Text>
+        </TouchableOpacity>
+        <Text className="text-white text-3xl font-bold">Karaoke Pro</Text>
+        <Text className="text-blue-100 mt-1 text-sm">
+          🎵 Real Music API Integration
+        </Text>
       </View>
 
-      {showMetrics ? (
-        <View className="flex-1 justify-center items-center px-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}>
-          <View className="w-full rounded-3xl p-8" style={{
-            backgroundColor: 'rgba(15, 23, 42, 0.95)',
-            borderWidth: 1,
-            borderColor: 'rgba(124, 58, 237, 0.3)',
-          }}>
-            <Text className="text-white text-3xl font-bold text-center mb-6">Performance Review</Text>
-            <PerformanceMetricsDisplay metrics={metrics} />
-            
-            <View className="flex-row gap-3 mt-8">
-              <Pressable
-                onPress={() => router.back()}
-                className="flex-1 py-4 rounded-xl items-center justify-center"
-                style={{ backgroundColor: 'rgba(124, 58, 237, 0.2)' }}
-              >
-                <Text className="text-white font-bold text-lg">Home</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => { setShowMetrics(false); setCurrentTime(0); setIsPlaying(false); }}
-                className="flex-1 py-4 rounded-xl items-center justify-center"
-                style={{ backgroundColor: '#7c3aed' }}
-              >
-                <Text className="text-white font-bold text-lg">Retry</Text>
-              </Pressable>
-            </View>
-          </View>
+      {/* Loading State */}
+      {state.loading ? (
+        <View className="flex-1 justify-center items-center py-20">
+          <Text className="text-gray-600 text-lg">🎵 Carregando música...</Text>
         </View>
       ) : (
         <>
-          {/* Header */}
-          <View className="flex-row items-center justify-between px-4 pt-6 pb-4 z-10">
-            <Pressable
-              onPress={() => router.back()}
-              className="w-12 h-12 rounded-full items-center justify-center"
-              style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
-            >
-              <MaterialIcons name="arrow-back" size={24} color="#fff" />
-            </Pressable>
-            <Text className="text-white text-xl font-bold tracking-wider">KARAOKE</Text>
-            <Pressable
-              onPress={() => router.back()}
-              className="w-12 h-12 rounded-full items-center justify-center"
-              style={{ backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
-            >
-              <MaterialIcons name="close" size={24} color="#fff" />
-            </Pressable>
+          {/* Album Art Card - Gradiente azul/laranja */}
+          <View className="px-4 py-6">
+            <View className="rounded-2xl overflow-hidden shadow-lg">
+              {state.trackData?.imageUrl ? (
+                <Image
+                  source={{ uri: state.trackData.imageUrl }}
+                  className="w-full aspect-square"
+                  resizeMode="cover"
+                />
+              ) : (
+                <View className="w-full aspect-square bg-gradient-to-br from-blue-400 via-blue-500 to-orange-500 flex items-center justify-center">
+                  <Text className="text-white text-6xl">🎵</Text>
+                </View>
+              )}
+            </View>
           </View>
 
-          {/* Main Performance Area */}
-          <View className="flex-1 flex-col justify-center items-center px-4 z-10">
-            {/* Album Art with Glow Effect */}
-            <View className="relative mb-8">
+          {/* Song Info Card - Design minimalista */}
+          <View className="px-4 py-4">
+            <View className="bg-gradient-to-r from-blue-50 to-orange-50 rounded-xl p-5 border border-blue-100">
+              <Text className="text-blue-700 font-bold text-lg leading-tight">
+                {state.trackData?.title || 'Unknown Track'}
+              </Text>
+              <Text className="text-gray-700 mt-2 font-semibold">
+                {state.trackData?.artist || 'Unknown Artist'}
+              </Text>
+              <Text className="text-gray-500 text-sm mt-2">
+                💿 {state.trackData?.album || 'Unknown Album'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Progress Bar - Laranja */}
+          <View className="px-4 py-6">
+            <View className="bg-gray-200 rounded-full h-2 overflow-hidden">
               <View
-                className="w-56 h-56 rounded-3xl absolute -inset-6"
-                style={{
-                  backgroundColor: 'rgba(124, 58, 237, 0.25)',
-                  borderRadius: 48,
-                }}
+                className="bg-orange-500 h-full transition-all"
+                style={{ width: `${progressPercent}%` }}
               />
-              <View
-                className="w-56 h-56 rounded-3xl overflow-hidden items-center justify-center border-4"
-                style={{
-                  borderColor: 'rgba(124, 58, 237, 0.5)',
-                  backgroundColor: '#4c1d95',
-                }}
-              >
-                <MaterialIcons name="music-note" size={120} color="rgba(255, 255, 255, 0.2)" />
-              </View>
             </View>
+            <View className="flex-row justify-between mt-3">
+              <Text className="text-gray-600 text-xs font-semibold">
+                {formatTime(state.currentTime)}
+              </Text>
+              <Text className="text-gray-600 text-xs font-semibold">
+                {formatTime(state.duration)}
+              </Text>
+            </View>
+          </View>
 
-            {/* Song Title & Artist */}
-            <Text className="text-4xl font-bold text-white text-center mb-3">
-              {song.title}
-            </Text>
-            <Text className="text-lg text-purple-200 text-center mb-12 font-semibold">
-              by {song.artist}
-            </Text>
-
-            {/* Lyrics Display */}
-            <ScrollView
-              ref={scrollViewRef}
-              className="w-full flex-1 mb-8"
-              showsVerticalScrollIndicator={false}
-              scrollEventThrottle={16}
+          {/* Playback Controls - Novo estilo */}
+          <View className="px-4 py-6 flex-row items-center justify-center gap-6">
+            {/* Skip Back */}
+            <TouchableOpacity
+              onPress={skipBackward}
+              className="bg-blue-100 active:bg-blue-200 p-4 rounded-full transition-colors"
             >
-              <View className="items-center py-6">
-                {song.lyrics.map((lyric, index) => (
-                  <LyricsLine
-                    key={index}
-                    text={lyric.text}
-                    isActive={index === currentLyricIndex}
-                    isSung={index < currentLyricIndex}
-                    index={index}
-                  />
-                ))}
-              </View>
-            </ScrollView>
+              <Text className="text-blue-600 text-2xl font-bold">⏮</Text>
+            </TouchableOpacity>
+
+            {/* Play Button - Destaque principal */}
+            <TouchableOpacity
+              onPress={togglePlay}
+              className={`${
+                state.isPlaying ? 'bg-orange-600 scale-95' : 'bg-orange-500'
+              } p-8 rounded-full shadow-xl active:shadow-lg transition-all`}
+            >
+              <Text className="text-white text-5xl leading-none">
+                {state.isPlaying ? '⏸' : '▶'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Skip Forward */}
+            <TouchableOpacity
+              onPress={skipForward}
+              className="bg-blue-100 active:bg-blue-200 p-4 rounded-full transition-colors"
+            >
+              <Text className="text-blue-600 text-2xl font-bold">⏭</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Control Panel - Glassmorphic Bottom Sheet */}
-          <View
-            className="px-6 py-6 rounded-t-3xl"
-            style={{
-              backgroundColor: 'rgba(10, 14, 39, 0.92)',
-              borderTopWidth: 1,
-              borderTopColor: 'rgba(124, 58, 237, 0.25)',
-            }}
-          >
-            {/* Progress Bar */}
-            <View className="mb-6">
-              <View
-                className="h-2 rounded-full overflow-hidden mb-3"
-                style={{ backgroundColor: 'rgba(124, 58, 237, 0.15)' }}
-              >
-                <View
-                  className="h-full rounded-full"
-                  style={{
-                    backgroundColor: '#a78bfa',
-                    width: `${progress}%`,
-                  }}
-                />
-              </View>
-              <View className="flex-row justify-between px-1">
-                <Text className="text-xs text-gray-500 font-semibold">{formatTime(currentTime)}</Text>
-                <Text className="text-xs text-gray-500 font-semibold">{formatTime(song.duration * 1000)}</Text>
-              </View>
-            </View>
+          {/* Performance Stats - Card minimalista */}
+          <View className="px-4 py-4">
+            <View className="bg-white rounded-xl border border-gray-200 p-5">
+              <Text className="text-gray-800 font-bold mb-4 text-base">
+                📊 Estatísticas
+              </Text>
 
-            {/* Control Buttons */}
-            <View className="flex-row items-center justify-center gap-8 mb-8">
-              <Pressable
-                onPress={() => handleSkip(-15)}
-                style={({ pressed }) => [
-                  { opacity: pressed ? 0.5 : 1 },
-                  { backgroundColor: 'rgba(124, 58, 237, 0.1)' }
-                ]}
-                className="w-14 h-14 rounded-full items-center justify-center"
-              >
-                <MaterialIcons name="replay-5" size={28} color="#c4b5fd" />
-              </Pressable>
+              <View className="space-y-3">
+                {/* Accuracy */}
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-gray-600 text-sm font-medium">
+                    Precisão
+                  </Text>
+                  <View className="bg-blue-100 px-3 py-1 rounded-lg">
+                    <Text className="text-blue-700 font-bold">{state.score}%</Text>
+                  </View>
+                </View>
 
-              <Pressable
-                onPress={handlePlayPause}
-                style={({ pressed }) => [
-                  { opacity: pressed ? 0.8 : 1 },
-                  {
-                    backgroundColor: isPlaying ? '#7c3aed' : '#8b5cf6',
-                    shadowColor: '#7c3aed',
-                    shadowOpacity: 0.7,
-                    shadowRadius: 20,
-                    elevation: 10,
-                  }
-                ]}
-                className="w-28 h-28 rounded-full items-center justify-center"
-              >
-                <MaterialIcons
-                  name={isPlaying ? 'pause' : 'play-arrow'}
-                  size={60}
-                  color="#fff"
-                />
-              </Pressable>
+                {/* Rating */}
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-gray-600 text-sm font-medium">
+                    Avaliação
+                  </Text>
+                  <View className="bg-orange-100 px-3 py-1 rounded-lg">
+                    <Text className="text-orange-700 font-bold">
+                      {state.rating || '—'}
+                    </Text>
+                  </View>
+                </View>
 
-              <Pressable
-                onPress={() => handleSkip(15)}
-                style={({ pressed }) => [
-                  { opacity: pressed ? 0.5 : 1 },
-                  { backgroundColor: 'rgba(124, 58, 237, 0.1)' }
-                ]}
-                className="w-14 h-14 rounded-full items-center justify-center"
-              >
-                <MaterialIcons name="forward-5" size={28} color="#c4b5fd" />
-              </Pressable>
-            </View>
-
-            {/* Volume Control */}
-            <View className="flex-row items-center gap-3 mb-5">
-              <MaterialIcons name="volume-down" size={18} color="#9ca3af" />
-              <View
-                className="flex-1 h-1.5 rounded-full overflow-hidden"
-                style={{ backgroundColor: 'rgba(124, 58, 237, 0.15)' }}
-              >
-                <View
-                  className="h-full rounded-full"
-                  style={{
-                    backgroundColor: '#10b981',
-                    width: `${volume}%`,
-                  }}
-                />
-              </View>
-              <MaterialIcons name="volume-up" size={18} color="#9ca3af" />
-            </View>
-
-            {/* Status & Settings */}
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center gap-2">
-                <View
-                  className="w-2 h-2 rounded-full"
-                  style={{
-                    backgroundColor: isPlaying ? '#10b981' : '#6b7280',
-                  }}
-                />
-                <Text className="text-sm text-gray-400">
-                  {isPlaying ? '▶ Now Singing' : '⏸ Paused'}
-                </Text>
-              </View>
-              <View className="flex-row gap-3">
-                <Pressable className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: 'rgba(124, 58, 237, 0.1)' }}>
-                  <MaterialIcons name="settings" size={20} color="#c4b5fd" />
-                </Pressable>
-                <Pressable className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: 'rgba(124, 58, 237, 0.1)' }}>
-                  <MaterialIcons name="favorite-border" size={20} color="#c4b5fd" />
-                </Pressable>
+                {/* Status */}
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-gray-600 text-sm font-medium">
+                    Status
+                  </Text>
+                  <View
+                    className={`${
+                      state.isPlaying ? 'bg-green-100' : 'bg-gray-100'
+                    } px-3 py-1 rounded-lg`}
+                  >
+                    <Text
+                      className={`font-bold ${
+                        state.isPlaying ? 'text-green-700' : 'text-gray-700'
+                      }`}
+                    >
+                      {state.isPlaying ? '🎤 Ao Vivo' : '⏸ Pausado'}
+                    </Text>
+                  </View>
+                </View>
               </View>
             </View>
           </View>
+
+          {/* Volume Control - Azul */}
+          <View className="px-4 py-4">
+            <View className="bg-blue-50 rounded-xl border border-blue-100 p-4">
+              <Text className="text-blue-700 font-bold mb-3 text-sm">
+                🔊 Volume
+              </Text>
+              <View className="flex-row items-center gap-3">
+                <Text className="text-gray-600 text-lg">🔇</Text>
+                <View className="flex-1 bg-blue-200 rounded-full h-2 overflow-hidden">
+                  <View className="bg-blue-600 h-full rounded-full w-1/2" />
+                </View>
+                <Text className="text-gray-600 text-lg">🔊</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* EQ Controls - Laranja */}
+          <View className="px-4 py-4">
+            <View className="bg-orange-50 rounded-xl border border-orange-100 p-4">
+              <Text className="text-orange-700 font-bold mb-4 text-sm">
+                🎚️ Equalizador
+              </Text>
+              <View className="flex-row justify-between items-end gap-3">
+                {/* Bass */}
+                <View className="flex-1 items-center">
+                  <View className="w-10 bg-gradient-to-t from-blue-600 to-blue-400 rounded-full mb-2" style={{ height: 40 }} />
+                  <Text className="text-gray-600 text-xs font-medium">Bass</Text>
+                </View>
+
+                {/* Mid */}
+                <View className="flex-1 items-center">
+                  <View className="w-10 bg-gradient-to-t from-orange-600 to-orange-400 rounded-full mb-2" style={{ height: 60 }} />
+                  <Text className="text-gray-600 text-xs font-medium">Mid</Text>
+                </View>
+
+                {/* Treble */}
+                <View className="flex-1 items-center">
+                  <View className="w-10 bg-gradient-to-t from-blue-600 to-blue-400 rounded-full mb-2" style={{ height: 45 }} />
+                  <Text className="text-gray-600 text-xs font-medium">Treble</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* API Info Footer */}
+          <View className="px-4 py-6">
+            <View className="bg-gray-100 rounded-xl p-4 border border-gray-300">
+              <Text className="text-gray-700 text-xs">
+                ✨ Dados de música fornecidos pela{' '}
+                <Text className="font-bold">Last.fm API</Text> • Grátis e em Tempo Real
+              </Text>
+            </View>
+          </View>
+
+          {/* Bottom Spacing */}
+          <View className="h-8" />
         </>
       )}
-    </View>
+    </ScrollView>
   );
 }
