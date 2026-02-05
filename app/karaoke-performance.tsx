@@ -1,4 +1,4 @@
-import { View, Text, Pressable, ScrollView, Animated } from 'react-native';
+import { View, Text, Pressable, ScrollView, Animated, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useState, useRef } from 'react';
@@ -8,6 +8,8 @@ import { useColors } from '@/hooks/use-colors';
 import { useKaraoke } from '@/lib/karaoke-context';
 import { getSongById } from '@/lib/mock-songs';
 import { Song, PlaybackState } from '@/lib/types';
+import { LyricsLine } from '@/components/lyrics-line';
+import { PlaybackControls } from '@/components/playback-controls';
 
 export default function KaraokePerformanceScreen() {
   const router = useRouter();
@@ -112,6 +114,8 @@ export default function KaraokePerformanceScreen() {
     return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
   };
 
+  const { height, width } = Dimensions.get('window');
+
   if (!song) {
     return (
       <ScreenContainer className="items-center justify-center">
@@ -123,160 +127,187 @@ export default function KaraokePerformanceScreen() {
   const progress = (currentTime / (song.duration * 1000)) * 100;
 
   return (
-    <ScreenContainer className="p-0">
-      <View className="flex-1 flex-col">
-        {/* Header */}
-        <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
-          <Pressable
-            onPress={() => router.back()}
-            style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
-          >
-            <MaterialIcons name="arrow-back" size={28} color={colors.foreground} />
-          </Pressable>
-          <Text className="text-lg font-semibold text-foreground">Now Singing</Text>
-          <Pressable
-            onPress={() => router.back()}
-            style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
-          >
-            <MaterialIcons name="close" size={28} color={colors.foreground} />
-          </Pressable>
+    <View className="flex-1" style={{ backgroundColor: '#0f172a' }}>
+      {/* Background Gradient Overlay */}
+      <View
+        className="absolute inset-0"
+        style={{
+          backgroundColor: 'rgba(124, 58, 237, 0.1)',
+        }}
+      />
+
+      {/* Header */}
+      <View className="px-4 pt-4 pb-2 flex-row items-center justify-between z-10">
+        <Pressable
+          onPress={() => router.back()}
+          style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+          className="w-10 h-10 rounded-full items-center justify-center bg-white/10"
+        >
+          <MaterialIcons name="arrow-back" size={24} color="#fff" />
+        </Pressable>
+        <Text className="text-lg font-bold text-white">KARAOKE</Text>
+        <Pressable
+          onPress={() => router.back()}
+          style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+          className="w-10 h-10 rounded-full items-center justify-center bg-white/10"
+        >
+          <MaterialIcons name="close" size={24} color="#fff" />
+        </Pressable>
+      </View>
+
+      {/* Main Content */}
+      <View className="flex-1 flex-col justify-center items-center px-4 pb-32">
+        {/* Song Image / Visual */}
+        <View
+          className="w-48 h-48 rounded-3xl mb-8 shadow-2xl overflow-hidden items-center justify-center"
+          style={{
+            backgroundColor: '#7c3aed',
+            borderWidth: 3,
+            borderColor: 'rgba(255, 255, 255, 0.2)',
+          }}
+        >
+          {song.imageUrl ? (
+            <View
+              style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: '#5b21b6',
+              }}
+            />
+          ) : (
+            <MaterialIcons name="music-note" size={80} color="rgba(255, 255, 255, 0.5)" />
+          )}
         </View>
 
-        {/* Song Info */}
-        <View className="px-4 py-4 border-b" style={{ borderBottomColor: colors.border }}>
-          <Text className="text-2xl font-bold text-foreground">{song.title}</Text>
-          <Text className="text-lg text-muted mt-1">{song.artist}</Text>
-        </View>
+        {/* Song Title & Artist */}
+        <Text className="text-3xl font-bold text-white text-center mb-2">
+          {song.title}
+        </Text>
+        <Text className="text-lg text-purple-300 text-center mb-8">
+          {song.artist}
+        </Text>
 
-        {/* Lyrics Display */}
+        {/* Lyrics Display - Scrollable */}
         <ScrollView
           ref={scrollViewRef}
-          className="flex-1 px-4 py-6"
+          className="w-full flex-1 mb-6"
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
         >
-          <View className="items-center">
+          <View className="items-center py-4">
             {song.lyrics.map((lyric, index) => (
-              <Text
+              <LyricsLine
                 key={index}
-                className={`text-2xl font-semibold text-center mb-4 leading-relaxed ${
-                  index === currentLyricIndex
-                    ? 'text-primary'
-                    : index < currentLyricIndex
-                    ? 'text-muted'
-                    : 'text-muted'
-                }`}
-                style={{
-                  fontSize: index === currentLyricIndex ? 28 : 20,
-                  color:
-                    index === currentLyricIndex
-                      ? colors.primary
-                      : colors.muted,
-                  opacity: index === currentLyricIndex ? 1 : 0.6,
-                }}
-              >
-                {lyric.text}
-              </Text>
+                text={lyric.text}
+                isActive={index === currentLyricIndex}
+                isSung={index < currentLyricIndex}
+                index={index}
+              />
             ))}
           </View>
         </ScrollView>
+      </View>
 
-        {/* Controls Section */}
-        <View
-          className="px-4 py-4 border-t"
-          style={{ borderTopColor: colors.border }}
-        >
-          {/* Progress Bar */}
-          <View className="mb-4">
+      {/* Bottom Control Panel */}
+      <View
+        className="absolute bottom-0 left-0 right-0 px-4 py-6"
+        style={{
+          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(124, 58, 237, 0.3)',
+        }}
+      >
+        {/* Progress Bar */}
+        <View className="mb-6">
+          <View
+            className="h-1.5 rounded-full overflow-hidden mb-3"
+            style={{ backgroundColor: 'rgba(124, 58, 237, 0.3)' }}
+          >
             <View
-              className="h-1 rounded-full overflow-hidden"
-              style={{ backgroundColor: colors.border }}
-            >
-              <View
-                className="h-full rounded-full"
-                style={{
-                  backgroundColor: colors.primary,
-                  width: `${progress}%`,
-                }}
-              />
-            </View>
-            <View className="flex-row justify-between mt-2">
-              <Text className="text-xs text-muted">
-                {formatTime(currentTime)}
-              </Text>
-              <Text className="text-xs text-muted">
-                {formatTime(song.duration * 1000)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Main Controls */}
-          <View className="flex-row items-center justify-center gap-6 mb-6">
-            <Pressable
-              onPress={() => handleSkip(-10000)}
-              style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
-            >
-              <MaterialIcons name="replay-10" size={32} color={colors.foreground} />
-            </Pressable>
-
-            <Pressable
-              onPress={handlePlayPause}
-              style={({ pressed }) => [
-                {
-                  opacity: pressed ? 0.8 : 1,
-                  backgroundColor: colors.primary,
-                },
-              ]}
-              className="w-16 h-16 rounded-full items-center justify-center"
-            >
-              <MaterialIcons
-                name={isPlaying ? 'pause' : 'play-arrow'}
-                size={40}
-                color={colors.background}
-              />
-            </Pressable>
-
-            <Pressable
-              onPress={() => handleSkip(10000)}
-              style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
-            >
-              <MaterialIcons name="forward-10" size={32} color={colors.foreground} />
-            </Pressable>
-          </View>
-
-          {/* Volume Control */}
-          <View className="flex-row items-center gap-3 mb-4">
-            <MaterialIcons name="volume-down" size={20} color={colors.muted} />
-            <View
-              className="flex-1 h-1 rounded-full overflow-hidden"
-              style={{ backgroundColor: colors.border }}
-            >
-              <View
-                className="h-full rounded-full"
-                style={{
-                  backgroundColor: colors.primary,
-                  width: `${volume}%`,
-                }}
-              />
-            </View>
-            <MaterialIcons name="volume-up" size={20} color={colors.muted} />
-            <Text className="text-xs text-muted w-6 text-right">{volume}</Text>
-          </View>
-
-          {/* Status Indicator */}
-          <View className="flex-row items-center justify-center gap-2 py-3">
-            <View
-              className="w-2 h-2 rounded-full"
+              className="h-full rounded-full"
               style={{
-                backgroundColor: isPlaying ? colors.success : colors.muted,
+                backgroundColor: '#7c3aed',
+                width: `${progress}%`,
               }}
             />
-            <Text className="text-sm text-muted">
-              {isPlaying ? 'Now Playing' : 'Paused'}
-            </Text>
+          </View>
+          <View className="flex-row justify-between">
+            <Text className="text-xs text-gray-400">{formatTime(currentTime)}</Text>
+            <Text className="text-xs text-gray-400">{formatTime(song.duration * 1000)}</Text>
           </View>
         </View>
+
+        {/* Playback Controls */}
+        <View className="flex-row items-center justify-center gap-8 mb-6">
+          <Pressable
+            onPress={() => handleSkip(-10000)}
+            style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
+            className="w-12 h-12 rounded-full items-center justify-center bg-white/10"
+          >
+            <MaterialIcons name="replay-10" size={28} color="#fff" />
+          </Pressable>
+
+          <Pressable
+            onPress={handlePlayPause}
+            style={({ pressed }) => [
+              {
+                opacity: pressed ? 0.8 : 1,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+                backgroundColor: isPlaying ? '#7c3aed' : '#8b5cf6',
+                shadowColor: '#7c3aed',
+                shadowOpacity: 0.5,
+                shadowRadius: 10,
+              },
+            ]}
+            className="w-20 h-20 rounded-full items-center justify-center"
+          >
+            <MaterialIcons
+              name={isPlaying ? 'pause' : 'play-arrow'}
+              size={48}
+              color="#fff"
+            />
+          </Pressable>
+
+          <Pressable
+            onPress={() => handleSkip(10000)}
+            style={({ pressed }) => [{ opacity: pressed ? 0.5 : 1 }]}
+            className="w-12 h-12 rounded-full items-center justify-center bg-white/10"
+          >
+            <MaterialIcons name="forward-10" size={28} color="#fff" />
+          </Pressable>
+        </View>
+
+        {/* Volume Control */}
+        <View className="flex-row items-center gap-3 mb-4">
+          <MaterialIcons name="volume-down" size={20} color="#9ca3af" />
+          <View
+            className="flex-1 h-1.5 rounded-full overflow-hidden"
+            style={{ backgroundColor: 'rgba(124, 58, 237, 0.3)' }}
+          >
+            <View
+              className="h-full rounded-full"
+              style={{
+                backgroundColor: '#10b981',
+                width: `${volume}%`,
+              }}
+            />
+          </View>
+          <MaterialIcons name="volume-up" size={20} color="#9ca3af" />
+        </View>
+
+        {/* Status */}
+        <View className="flex-row items-center justify-center gap-2">
+          <View
+            className="w-2 h-2 rounded-full"
+            style={{
+              backgroundColor: isPlaying ? '#10b981' : '#6b7280',
+            }}
+          />
+          <Text className="text-sm text-gray-400">
+            {isPlaying ? '▶ Now Playing' : '⏸ Paused'}
+          </Text>
+        </View>
       </View>
-    </ScreenContainer>
+    </View>
   );
 }

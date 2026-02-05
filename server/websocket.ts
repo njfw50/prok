@@ -1,4 +1,6 @@
 import { WebSocket, WebSocketServer } from 'ws';
+import { IncomingMessage } from 'http';
+import { Server as HTTPServer } from 'http';
 import { Server } from 'http';
 import { verifyToken } from './auth';
 
@@ -57,7 +59,7 @@ export function setupWebSocket(server: Server) {
       console.log('[WebSocket] Connection closed');
     });
 
-    ws.on('error', (error) => {
+    ws.on('error', (error: Error) => {
       console.error('[WebSocket] Error:', error);
     });
   });
