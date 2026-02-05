@@ -1,8 +1,11 @@
 /**
  * Music APIs Integration Service
  * Integra Last.fm, Genius, e MusicBrainz para dados reais de músicas
+ * Com fallback para dados mock quando API falha
  * @module lib/music-api-service
  */
+
+import { MOCK_SONGS, CHART_SONGS } from './mock-fallback';
 
 // Use environment variables or fallback to demo keys
 const LASTFM_API_KEY = process.env.EXPO_PUBLIC_LASTFM_API_KEY || 'e41df2b10f7f6c3436d1ba915d616dc4';
@@ -37,7 +40,7 @@ export class LastFmService {
     try {
       if (!artist || !track) {
         console.warn('Last.fm: Artist or track name is empty');
-        return null;
+        return this.getMockTrack(artist, track);
       }
 
       const params = new URLSearchParams({
@@ -54,15 +57,15 @@ export class LastFmService {
       });
 
       if (!response.ok) {
-        console.warn(`Last.fm API error: ${response.status} ${response.statusText}`);
-        return null;
+        console.warn(`Last.fm API error: ${response.status} - Using mock data`);
+        return this.getMockTrack(artist, track);
       }
 
       const data = await response.json();
 
       if (data.error) {
-        console.warn('Last.fm API error:', data.message);
-        return null;
+        console.warn('Last.fm API error:', data.message, '- Using mock data');
+        return this.getMockTrack(artist, track);
       }
 
       if (data.track) {
@@ -77,11 +80,25 @@ export class LastFmService {
         };
       }
 
-      return null;
+      return this.getMockTrack(artist, track);
     } catch (error) {
-      console.error('Last.fm API error:', error instanceof Error ? error.message : String(error));
-      return null;
+      console.error('Last.fm API error:', error instanceof Error ? error.message : String(error), '- Using mock data');
+      return this.getMockTrack(artist, track);
     }
+  }
+
+  /**
+   * Get mock track for fallback
+   */
+  private getMockTrack(artist: string, track: string): TrackData | null {
+    const mockKey = artist.toLowerCase();
+    const mockData = (MOCK_SONGS as any)[mockKey];
+    
+    if (mockData && Array.isArray(mockData)) {
+      return mockData[0] || null;
+    }
+
+    return null;
   }
 
   /**
@@ -91,7 +108,7 @@ export class LastFmService {
     try {
       if (!artist) {
         console.warn('Last.fm: Artist name is empty');
-        return [];
+        return this.getMockArtistTracks(artist);
       }
 
       const params = new URLSearchParams({
@@ -108,15 +125,15 @@ export class LastFmService {
       });
 
       if (!response.ok) {
-        console.warn(`Last.fm API error: ${response.status}`);
-        return [];
+        console.warn(`Last.fm API error: ${response.status} - Using mock data`);
+        return this.getMockArtistTracks(artist);
       }
 
       const data = await response.json();
 
       if (data.error) {
-        console.warn('Last.fm API error:', data.message);
-        return [];
+        console.warn('Last.fm API error:', data.message, '- Using mock data');
+        return this.getMockArtistTracks(artist);
       }
 
       if (data.toptracks?.track && Array.isArray(data.toptracks.track)) {
@@ -130,11 +147,20 @@ export class LastFmService {
         }));
       }
 
-      return [];
+      return this.getMockArtistTracks(artist);
     } catch (error) {
-      console.error('Last.fm API error:', error instanceof Error ? error.message : String(error));
-      return [];
+      console.error('Last.fm API error:', error instanceof Error ? error.message : String(error), '- Using mock data');
+      return this.getMockArtistTracks(artist);
     }
+  }
+
+  /**
+   * Get mock tracks for fallback
+   */
+  private getMockArtistTracks(artist: string): TrackData[] {
+    const mockKey = artist.toLowerCase();
+    const mockData = (MOCK_SONGS as any)[mockKey];
+    return mockData || [];
   }
 
   /**
@@ -155,15 +181,15 @@ export class LastFmService {
       });
 
       if (!response.ok) {
-        console.warn(`Last.fm API error: ${response.status}`);
-        return [];
+        console.warn(`Last.fm API error: ${response.status} - Using mock data`);
+        return CHART_SONGS;
       }
 
       const data = await response.json();
 
       if (data.error) {
-        console.warn('Last.fm API error:', data.message);
-        return [];
+        console.warn('Last.fm API error:', data.message, '- Using mock data');
+        return CHART_SONGS;
       }
 
       if (data.tracks?.track && Array.isArray(data.tracks.track)) {
@@ -177,10 +203,10 @@ export class LastFmService {
         }));
       }
 
-      return [];
+      return CHART_SONGS;
     } catch (error) {
-      console.error('Last.fm API error:', error instanceof Error ? error.message : String(error));
-      return [];
+      console.error('Last.fm API error:', error instanceof Error ? error.message : String(error), '- Using mock data');
+      return CHART_SONGS;
     }
   }
 }
