@@ -4,8 +4,9 @@
  * @module lib/music-api-service
  */
 
-const LASTFM_API_KEY = '6b7c2c3f0c8d3f3e3c3f3c3f'; // Free tier
-const GENIUS_ACCESS_TOKEN = 'wH0v0DXxCvLc9wm0yZ0UKzvGSXDKVTyZ5vFMJJYNDPLvSHCTsL0Sy8zX8UKzvGSX';
+// Use environment variables or fallback to demo keys
+const LASTFM_API_KEY = process.env.EXPO_PUBLIC_LASTFM_API_KEY || 'e41df2b10f7f6c3436d1ba915d616dc4';
+const GENIUS_ACCESS_TOKEN = process.env.EXPO_PUBLIC_GENIUS_TOKEN || 'MYxc_LJ-fV7FT6sFQOhqKSMb4UwL3aMBhx8a1Zr8LSDQvLZxLqNqNSHiAhCqGDHb';
 
 interface TrackData {
   title: string;
@@ -34,32 +35,51 @@ export class LastFmService {
    */
   async searchTrack(artist: string, track: string): Promise<TrackData | null> {
     try {
+      if (!artist || !track) {
+        console.warn('Last.fm: Artist or track name is empty');
+        return null;
+      }
+
       const params = new URLSearchParams({
         method: 'track.getInfo',
-        artist,
-        track,
+        artist: artist.trim(),
+        track: track.trim(),
         api_key: this.apiKey,
         format: 'json',
       });
 
-      const response = await fetch(`${this.baseUrl}?${params}`);
+      const response = await fetch(`${this.baseUrl}?${params}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+
+      if (!response.ok) {
+        console.warn(`Last.fm API error: ${response.status} ${response.statusText}`);
+        return null;
+      }
+
       const data = await response.json();
 
+      if (data.error) {
+        console.warn('Last.fm API error:', data.message);
+        return null;
+      }
+
       if (data.track) {
-        const track = data.track;
+        const t = data.track;
         return {
-          title: track.name,
-          artist: track.artist.name,
-          album: track.album?.title || 'Unknown',
-          imageUrl: track.album?.image?.[3]?.['#text'] || '',
-          duration: parseInt(track.duration) / 1000,
-          url: track.url,
+          title: t.name || 'Unknown',
+          artist: t.artist?.name || artist,
+          album: t.album?.title || 'Unknown',
+          imageUrl: t.album?.image?.[3]?.['#text'] || '',
+          duration: t.duration ? parseInt(t.duration) / 1000 : 0,
+          url: t.url || '',
         };
       }
 
       return null;
     } catch (error) {
-      console.error('Last.fm API error:', error);
+      console.error('Last.fm API error:', error instanceof Error ? error.message : String(error));
       return null;
     }
   }
@@ -69,31 +89,50 @@ export class LastFmService {
    */
   async getArtistTopTracks(artist: string): Promise<TrackData[]> {
     try {
+      if (!artist) {
+        console.warn('Last.fm: Artist name is empty');
+        return [];
+      }
+
       const params = new URLSearchParams({
         method: 'artist.gettoptracks',
-        artist,
+        artist: artist.trim(),
         api_key: this.apiKey,
         format: 'json',
         limit: '10',
       });
 
-      const response = await fetch(`${this.baseUrl}?${params}`);
+      const response = await fetch(`${this.baseUrl}?${params}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+
+      if (!response.ok) {
+        console.warn(`Last.fm API error: ${response.status}`);
+        return [];
+      }
+
       const data = await response.json();
 
-      if (data.toptracks?.track) {
+      if (data.error) {
+        console.warn('Last.fm API error:', data.message);
+        return [];
+      }
+
+      if (data.toptracks?.track && Array.isArray(data.toptracks.track)) {
         return data.toptracks.track.map((t: any) => ({
-          title: t.name,
-          artist: t.artist.name,
+          title: t.name || 'Unknown',
+          artist: t.artist?.name || artist,
           album: '',
           imageUrl: t.image?.[3]?.['#text'] || '',
           duration: 0,
-          url: t.url,
+          url: t.url || '',
         }));
       }
 
       return [];
     } catch (error) {
-      console.error('Last.fm API error:', error);
+      console.error('Last.fm API error:', error instanceof Error ? error.message : String(error));
       return [];
     }
   }
@@ -110,23 +149,37 @@ export class LastFmService {
         limit: '20',
       });
 
-      const response = await fetch(`${this.baseUrl}?${params}`);
+      const response = await fetch(`${this.baseUrl}?${params}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+
+      if (!response.ok) {
+        console.warn(`Last.fm API error: ${response.status}`);
+        return [];
+      }
+
       const data = await response.json();
 
-      if (data.tracks?.track) {
+      if (data.error) {
+        console.warn('Last.fm API error:', data.message);
+        return [];
+      }
+
+      if (data.tracks?.track && Array.isArray(data.tracks.track)) {
         return data.tracks.track.map((t: any) => ({
-          title: t.name,
-          artist: t.artist.name,
+          title: t.name || 'Unknown',
+          artist: t.artist?.name || 'Unknown Artist',
           album: '',
           imageUrl: t.image?.[3]?.['#text'] || '',
           duration: 0,
-          url: t.url,
+          url: t.url || '',
         }));
       }
 
       return [];
     } catch (error) {
-      console.error('Last.fm API error:', error);
+      console.error('Last.fm API error:', error instanceof Error ? error.message : String(error));
       return [];
     }
   }
@@ -144,27 +197,42 @@ export class GeniusService {
    */
   async searchLyrics(artist: string, title: string): Promise<LyricData | null> {
     try {
-      const query = `${artist} ${title}`;
+      if (!artist || !title) {
+        console.warn('Genius: Artist or title is empty');
+        return null;
+      }
+
+      const query = `${artist.trim()} ${title.trim()}`;
       const params = new URLSearchParams({
         q: query,
         access_token: this.accessToken,
       });
 
-      const response = await fetch(`${this.baseUrl}/search?${params}`);
-      const data = await response.json();
+      const response = await fetch(`${this.baseUrl}/search?${params}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
 
-      if (data.response?.hits?.[0]) {
-        const hit = data.response.hits[0].result;
-        return {
-          lyrics: `Check full lyrics at: ${hit.url}`,
-          source: 'Genius',
-          artistName: hit.primary_artist.name,
-        };
+      if (!response.ok) {
+        console.warn(`Genius API error: ${response.status}`);
+        return null;
       }
 
-      return null;
+      const data = await response.json();
+
+      if (!data.response?.hits?.[0]) {
+        console.warn('Genius: No results found');
+        return null;
+      }
+
+      const hit = data.response.hits[0].result;
+      return {
+        lyrics: `Check full lyrics at: ${hit.url}`,
+        source: 'Genius',
+        artistName: hit.primary_artist?.name || artist,
+      };
     } catch (error) {
-      console.error('Genius API error:', error);
+      console.error('Genius API error:', error instanceof Error ? error.message : String(error));
       return null;
     }
   }
@@ -181,21 +249,32 @@ export class MusicBrainzService {
    */
   async searchArtist(artistName: string) {
     try {
+      if (!artistName) {
+        console.warn('MusicBrainz: Artist name is empty');
+        return null;
+      }
+
       const params = new URLSearchParams({
-        query: `artist:"${artistName}"`,
+        query: `artist:"${artistName.trim()}"`,
         fmt: 'json',
       });
 
-      const response = await fetch(
-        `${this.baseUrl}/artist?${params}`,
-        {
-          headers: { 'User-Agent': 'KaraokePro/1.0' },
-        }
-      );
+      const response = await fetch(`${this.baseUrl}/artist?${params}`, {
+        headers: { 
+          'User-Agent': 'KaraokePro/1.0',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.warn(`MusicBrainz API error: ${response.status}`);
+        return null;
+      }
+
       const data = await response.json();
       return data.artists?.[0] || null;
     } catch (error) {
-      console.error('MusicBrainz API error:', error);
+      console.error('MusicBrainz API error:', error instanceof Error ? error.message : String(error));
       return null;
     }
   }
@@ -208,25 +287,36 @@ export class MusicBrainzService {
     title: string
   ): Promise<TrackData[]> {
     try {
-      const query = `artist:"${artist}" recording:"${title}"`;
+      if (!artist || !title) {
+        console.warn('MusicBrainz: Artist or title is empty');
+        return [];
+      }
+
+      const query = `artist:"${artist.trim()}" recording:"${title.trim()}"`;
       const params = new URLSearchParams({
         query,
         fmt: 'json',
         limit: '10',
       });
 
-      const response = await fetch(
-        `${this.baseUrl}/recording?${params}`,
-        {
-          headers: { 'User-Agent': 'KaraokePro/1.0' },
-        }
-      );
+      const response = await fetch(`${this.baseUrl}/recording?${params}`, {
+        headers: { 
+          'User-Agent': 'KaraokePro/1.0',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.warn(`MusicBrainz API error: ${response.status}`);
+        return [];
+      }
+
       const data = await response.json();
 
       return (
         data.recordings?.map((rec: any) => ({
-          title: rec.title,
-          artist: rec['artist-credit']?.[0]?.artist?.name || 'Unknown',
+          title: rec.title || 'Unknown',
+          artist: rec['artist-credit']?.[0]?.artist?.name || artist,
           album: rec.releases?.[0]?.title || 'Unknown',
           imageUrl: '',
           duration: rec.length ? rec.length / 1000 : 0,
@@ -234,7 +324,7 @@ export class MusicBrainzService {
         })) || []
       );
     } catch (error) {
-      console.error('MusicBrainz API error:', error);
+      console.error('MusicBrainz API error:', error instanceof Error ? error.message : String(error));
       return [];
     }
   }

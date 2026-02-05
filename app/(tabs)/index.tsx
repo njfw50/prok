@@ -14,12 +14,20 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { RealSongList, SongCard } from '@/components/song-list';
 import { useRealSongs, usePopularSongs } from '@/hooks/use-real-songs';
+import { ErrorBoundary } from '@/lib/error-boundary';
 
 export default function HomeScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState(false);
-  const popularSongs = usePopularSongs();
+  
+  let popularSongs: any[] = [];
+  try {
+    popularSongs = usePopularSongs();
+  } catch (error) {
+    console.error('Error loading popular songs:', error);
+    popularSongs = [];
+  }
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
@@ -33,7 +41,8 @@ export default function HomeScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-white">
+    <ErrorBoundary>
+      <ScrollView className="flex-1 bg-white">
       {/* Header */}
       <View className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-8 pb-10">
         <Text className="text-white text-4xl font-bold">Karaoke Pro</Text>
@@ -175,5 +184,6 @@ export default function HomeScreen() {
         </>
       )}
     </ScrollView>
+    </ErrorBoundary>
   );
 }
